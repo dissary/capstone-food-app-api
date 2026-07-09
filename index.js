@@ -22,6 +22,12 @@ app.get("/api/health", async (req, res) => {
 const restaurantRoutes = require("./routes/restaurants");
 app.use("/api/restaurants", restaurantRoutes);
 
+const menuItemRoutes = require("./routes/menuItems");
+app.use("/api/menu-items", menuItemRoutes);
+
+const orderRoutes = require("./routes/orders");
+app.use("/api/orders", orderRoutes);
+
 app.listen(3000, () => {
   console.log("App is listening on port 3000");
 });
