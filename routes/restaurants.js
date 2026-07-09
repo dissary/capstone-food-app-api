@@ -2,6 +2,9 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
 
+const verifyToken = require("../middleware/verifyToken");
+const checkRole = require("../middleware/checkRole");
+
 // GET all restaurants (for Home page listing)
 router.get("/", async (req, res) => {
   try {
@@ -31,7 +34,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // CREATE restaurant (admin only — auth check comes later)
-router.post("/", async (req, res) => {
+router.post("/", verifyToken, checkRole("admin"), async (req, res) => {
   try {
     const { owner_id, name, description, address, phone, image_url } = req.body;
     const result = await pool.query(
@@ -47,7 +50,7 @@ router.post("/", async (req, res) => {
 });
 
 // UPDATE restaurant (owner/admin)
-router.put("/:id", async (req, res) => {
+router.put("/:id", verifyToken, checkRole("owner", "admin"), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, address, phone, image_url, is_active } = req.body;
@@ -68,7 +71,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE restaurant (owner/admin)
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", verifyToken, checkRole("owner", "admin"), async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query("DELETE FROM restaurants WHERE id = $1 RETURNING *", [id]);

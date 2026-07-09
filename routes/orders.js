@@ -2,6 +2,9 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
 
+const verifyToken = require("../middleware/verifyToken");
+const checkRole = require("../middleware/checkRole");
+
 // CREATE an order (checkout) — expects: consumer_id (or guest info), restaurant_id, payment_method, items: [{ menu_item_id, quantity }]
 router.post("/", async (req, res) => {
   const client = await pool.connect();
@@ -75,7 +78,7 @@ router.get("/consumer/:consumerId", async (req, res) => {
 });
 
 // GET all orders for a restaurant (owner dashboard)
-router.get("/restaurant/:restaurantId", async (req, res) => {
+router.get("/restaurant/:restaurantId", verifyToken, checkRole("owner", "admin"), async (req, res) => {
   try {
     const { restaurantId } = req.params;
     const result = await pool.query(

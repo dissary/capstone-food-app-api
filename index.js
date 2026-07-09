@@ -28,6 +28,9 @@ app.use("/api/menu-items", menuItemRoutes);
 const orderRoutes = require("./routes/orders");
 app.use("/api/orders", orderRoutes);
 
+const userRoutes = require("./routes/users");
+app.use("/api/users", userRoutes);
+
 app.listen(3000, () => {
   console.log("App is listening on port 3000");
 });
