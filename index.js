@@ -1,38 +1,26 @@
-let express = require("express");
-let path = require("path");
+const express = require("express");
 const cors = require("cors");
-let app = express();
+require("dotenv").config();
+
+const pool = require("./config/db");
+
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-const { Pool } = require("pg");
-require("dotenv").config();
-const { DATABASE_URL } = process.env;
-
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: {
-    require: true,
-  },
-});
-
-async function getPostgresVersion() {
-  const client = await pool.connect();
+// Health check route — confirms API + DB are alive
+app.get("/api/health", async (req, res) => {
   try {
-    const response = await client.query("SELECT version()");
-    console.log(response.rows[0]);
-  } finally {
-    client.release();
+    const result = await pool.query("SELECT NOW()");
+    res.json({ status: "ok", dbTime: result.rows[0].now });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: err.message });
   }
-}
-
-getPostgresVersion();
-
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname + "/index.html"));
 });
 
+const restaurantRoutes = require("./routes/restaurants");
+app.use("/api/restaurants", restaurantRoutes);
 
 app.listen(3000, () => {
   console.log("App is listening on port 3000");
