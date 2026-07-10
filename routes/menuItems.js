@@ -5,6 +5,21 @@ const pool = require("../config/db");
 const verifyToken = require("../middleware/verifyToken");
 const checkRole = require("../middleware/checkRole");
 
+// GET all menu items for a restaurant (owner/admin management view — includes unavailable items)
+router.get("/restaurant/:restaurantId/all", verifyToken, checkRole("owner", "admin"), async (req, res) => {
+  try {
+    const { restaurantId } = req.params;
+    const result = await pool.query(
+      "SELECT * FROM menu_items WHERE restaurant_id = $1 ORDER BY category, name",
+      [restaurantId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET all menu items for a specific restaurant
 router.get("/restaurant/:restaurantId", async (req, res) => {
   try {
