@@ -31,6 +31,9 @@ app.use("/api/orders", orderRoutes);
 const userRoutes = require("./routes/users");
 app.use("/api/users", userRoutes);
 
+const paymentRoutes = require("./routes/payments");
+app.use("/api/payments", paymentRoutes);
+
 app.listen(3000, () => {
   console.log("App is listening on port 3000");
 });

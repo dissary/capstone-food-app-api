@@ -5,44 +5,46 @@ const pool = require("../config/db");
 const verifyToken = require("../middleware/verifyToken");
 const checkRole = require("../middleware/checkRole");
 
-// CREATE an order (checkout) — expects: consumer_id (or guest info), restaurant_id, payment_method, items: [{ menu_item_id, quantity }]
-router.post("/", async (req, res) => {
+const optionalAuth = require("../middleware/optionalAuth");
+
+router.post("/", optionalAuth, async (req, res) => {
   const client = await pool.connect();
   try {
-    const { consumer_id, guest_name, guest_phone, restaurant_id, payment_method, items } = req.body;
+    const { guest_name, guest_phone, restaurant_id, payment_method, items, stripe_payment_id, status } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ message: "Order must contain at least one item" });
     }
 
+    // Resolve consumer_id from token if logged in
+    let consumer_id = null;
+    if (req.user) {
+      const userResult = await client.query("SELECT id FROM users WHERE firebase_uid = $1", [req.user.uid]);
+      if (userResult.rows.length > 0) {
+        consumer_id = userResult.rows[0].id;
+      }
+    }
+
     await client.query("BEGIN");
 
-    // 1. Fetch current prices for all items in the cart (never trust price from frontend)
     const menuItemIds = items.map((i) => i.menu_item_id);
     const priceResult = await client.query(
       "SELECT id, price FROM menu_items WHERE id = ANY($1::int[])",
       [menuItemIds]
     );
     const priceMap = {};
-    priceResult.rows.forEach((row) => {
-      priceMap[row.id] = parseFloat(row.price);
-    });
+    priceResult.rows.forEach((row) => { priceMap[row.id] = parseFloat(row.price); });
 
-    // 2. Calculate total from real DB prices
     let total = 0;
-    items.forEach((item) => {
-      total += priceMap[item.menu_item_id] * item.quantity;
-    });
+    items.forEach((item) => { total += priceMap[item.menu_item_id] * item.quantity; });
 
-    // 3. Insert the order
     const orderResult = await client.query(
-      `INSERT INTO orders (consumer_id, guest_name, guest_phone, restaurant_id, status, payment_method, total_amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [consumer_id || null, guest_name || null, guest_phone || null, restaurant_id, "pending", payment_method, total]
+      `INSERT INTO orders (consumer_id, guest_name, guest_phone, restaurant_id, status, payment_method, total_amount, stripe_payment_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [consumer_id, guest_name || null, guest_phone || null, restaurant_id, status || "pending", payment_method, total, stripe_payment_id || null]
     );
     const order = orderResult.rows[0];
 
-    // 4. Insert each order item
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items (order_id, menu_item_id, quantity, price_at_order)
@@ -84,6 +86,26 @@ router.get("/restaurant/:restaurantId", verifyToken, checkRole("owner", "admin")
     const result = await pool.query(
       "SELECT * FROM orders WHERE restaurant_id = $1 ORDER BY created_at DESC",
       [restaurantId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET orders for the currently logged-in consumer
+router.get("/mine", verifyToken, async (req, res) => {
+  try {
+    const userResult = await pool.query("SELECT id FROM users WHERE firebase_uid = $1", [req.user.uid]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const userId = userResult.rows[0].id;
+
+    const result = await pool.query(
+      "SELECT * FROM orders WHERE consumer_id = $1 ORDER BY created_at DESC",
+      [userId]
     );
     res.json(result.rows);
   } catch (err) {

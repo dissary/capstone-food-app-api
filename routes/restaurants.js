@@ -18,6 +18,25 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/mine", verifyToken, checkRole("owner", "admin"), async (req, res) => {
+  try {
+    const userResult = await pool.query("SELECT id FROM users WHERE firebase_uid = $1", [req.user.uid]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    const userId = userResult.rows[0].id;
+
+    const result = await pool.query("SELECT * FROM restaurants WHERE owner_id = $1", [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "No restaurant assigned to this owner yet" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET single restaurant by id (for restaurant detail page)
 router.get("/:id", async (req, res) => {
   try {
