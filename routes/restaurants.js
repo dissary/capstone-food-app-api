@@ -5,6 +5,17 @@ const pool = require("../config/db");
 const verifyToken = require("../middleware/verifyToken");
 const checkRole = require("../middleware/checkRole");
 
+// GET all restaurants including paused ones (admin management view)
+router.get("/all", verifyToken, checkRole("admin"), async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM restaurants ORDER BY created_at DESC");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET all restaurants (for Home page listing)
 router.get("/", async (req, res) => {
   try {
@@ -96,6 +107,11 @@ router.delete("/:id", verifyToken, checkRole("owner", "admin"), async (req, res)
     }
     res.json({ message: "Restaurant deleted", deleted: result.rows[0] });
   } catch (err) {
+    if (err.code === "23503") {
+      return res.status(409).json({
+        message: "This restaurant has existing orders/menu items and can't be deleted. Pause it instead.",
+      });
+    }
     console.error(err);
     res.status(500).json({ message: err.message });
   }

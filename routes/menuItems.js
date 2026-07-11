@@ -97,6 +97,11 @@ router.delete("/:id", verifyToken, checkRole("owner", "admin"), async (req, res)
     }
     res.json({ message: "Menu item deleted", deleted: result.rows[0] });
   } catch (err) {
+    if (err.code === "23503") { // Postgres foreign key violation
+      return res.status(409).json({
+        message: "This item has existing orders and can't be deleted. Mark it unavailable instead.",
+      });
+    }
     console.error(err);
     res.status(500).json({ message: err.message });
   }

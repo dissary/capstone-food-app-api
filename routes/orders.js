@@ -115,21 +115,48 @@ router.get("/mine", verifyToken, async (req, res) => {
 });
 
 // GET single order with its items (order detail / receipt)
-router.get("/:id", async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [id]);
     if (orderResult.rows.length === 0) {
       return res.status(404).json({ message: "Order not found" });
     }
+    const order = orderResult.rows[0];
+
+    // Guest orders (no consumer_id) — anyone with the link can view (matches guest checkout flow)
+    if (!order.consumer_id) {
+      const itemsResult = await pool.query(
+        `SELECT oi.*, mi.name, mi.image_url FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id WHERE oi.order_id = $1`,
+        [id]
+      );
+      return res.json({ ...order, items: itemsResult.rows });
+    }
+
+    // Order belongs to a registered consumer — must be logged in
+    if (!req.user) {
+      return res.status(401).json({ message: "Login required to view this order" });
+    }
+
+    const userResult = await pool.query("SELECT id, role FROM users WHERE firebase_uid = $1", [req.user.uid]);
+    if (userResult.rows.length === 0) {
+      return res.status(403).json({ message: "Not authorized to view this order" });
+    }
+    const { id: userId, role } = userResult.rows[0];
+
+    // Allowed if: it's their own order, OR they're an owner/admin managing that restaurant
+    const isOwnerOfOrder = order.consumer_id === userId;
+    const isOwnerOrAdmin = role === "owner" || role === "admin";
+
+    if (!isOwnerOfOrder && !isOwnerOrAdmin) {
+      return res.status(403).json({ message: "Not authorized to view this order" });
+    }
+
     const itemsResult = await pool.query(
-      `SELECT oi.*, mi.name, mi.image_url
-       FROM order_items oi
-       JOIN menu_items mi ON oi.menu_item_id = mi.id
-       WHERE oi.order_id = $1`,
+      `SELECT oi.*, mi.name, mi.image_url FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id WHERE oi.order_id = $1`,
       [id]
     );
-    res.json({ ...orderResult.rows[0], items: itemsResult.rows });
+    res.json({ ...order, items: itemsResult.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: err.message });
