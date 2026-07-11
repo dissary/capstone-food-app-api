@@ -5,6 +5,48 @@ const pool = require("../config/db");
 const verifyToken = require("../middleware/verifyToken");
 const checkRole = require("../middleware/checkRole");
 
+// GET saved category order for a restaurant
+router.get("/:id/category-order", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "SELECT category, sort_order FROM category_order WHERE restaurant_id = $1 ORDER BY sort_order",
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT new category order (owner/admin) — body: { categories: ["Mains", "Drinks", "Desserts"] }
+router.put("/:id/category-order", verifyToken, checkRole("owner", "admin"), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { categories } = req.body;
+
+    await client.query("BEGIN");
+    for (let i = 0; i < categories.length; i++) {
+      await client.query(
+        `INSERT INTO category_order (restaurant_id, category, sort_order)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (restaurant_id, category) DO UPDATE SET sort_order = $3`,
+        [id, categories[i], i]
+      );
+    }
+    await client.query("COMMIT");
+    res.json({ message: "Category order updated" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // GET all restaurants including paused ones (admin management view)
 router.get("/all", verifyToken, checkRole("admin"), async (req, res) => {
   try {

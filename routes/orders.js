@@ -104,7 +104,11 @@ router.get("/mine", verifyToken, async (req, res) => {
     const userId = userResult.rows[0].id;
 
     const result = await pool.query(
-      "SELECT * FROM orders WHERE consumer_id = $1 ORDER BY created_at DESC",
+      `SELECT o.*, r.name AS restaurant_name, r.image_url AS restaurant_image
+       FROM orders o
+       JOIN restaurants r ON o.restaurant_id = r.id
+       WHERE o.consumer_id = $1
+       ORDER BY o.created_at DESC`,
       [userId]
     );
     res.json(result.rows);
@@ -118,7 +122,13 @@ router.get("/mine", verifyToken, async (req, res) => {
 router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [id]);
+    const orderResult = await pool.query(
+      `SELECT o.*, r.name AS restaurant_name, r.image_url AS restaurant_image
+       FROM orders o
+       JOIN restaurants r ON o.restaurant_id = r.id
+       WHERE o.id = $1`,
+      [id]
+    );
     if (orderResult.rows.length === 0) {
       return res.status(404).json({ message: "Order not found" });
     }
