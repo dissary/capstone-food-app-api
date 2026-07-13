@@ -15,6 +15,9 @@
   "scripts": {
     "dev": "nodemon index.js",
   "test": "vitest run"
-  }
+  },
+  "overrides": {
+  "jose": "^4.15.5"
+}
   
 }
