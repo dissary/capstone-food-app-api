@@ -22,10 +22,13 @@ Frontend repo: `capstone-food-app`
 
 ## Getting Started
 
-### 1. Install dependencies
+### 1. Install dependencies & packages
 
 ```bash
 npm install
+npm install express cors pg dotenv
+npm install firebase-admin
+npm install stripe
 ```
 
 ### 2. Environment variables
